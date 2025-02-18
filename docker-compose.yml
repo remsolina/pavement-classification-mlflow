@@ -16,7 +16,7 @@ services:
       - mysql_data:/var/lib/mysql
 
   mlflow:
-    build: ..
+    build: .
     container_name: mlflow-server
     restart: always
     depends_on:
