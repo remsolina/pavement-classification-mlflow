@@ -3,6 +3,7 @@ FROM python:3.9
 WORKDIR /app
 
 # Install MLflow and dependencies
+RUN pip install cryptography
 RUN pip install --no-cache-dir mlflow boto3 pymysql
 
 # Expose MLflow UI port
