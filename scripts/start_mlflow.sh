@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Fetch EC2 instance's public IP
-SERVER_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+SERVER_IP=$(curl -s ifconfig.me)
 
 echo "Starting MLflow Server..."
 docker-compose up -d
