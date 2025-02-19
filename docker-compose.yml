@@ -24,7 +24,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - AWS_REGION=us-east-1  # IAM Role-based authentication (No Access Keys)
+      - AWS_REGION=us-west-2  # IAM Role-based authentication (No Access Keys)
     command: >
       mlflow server --backend-store-uri mysql+pymysql://mlflow_user:mlflow_pass@mlflow-mysql/mlflow
       --default-artifact-root s3://mlflow-pavement-classification/
