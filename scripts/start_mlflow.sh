@@ -4,7 +4,7 @@
 SERVER_IP=$(curl -s ifconfig.me)
 
 echo "Starting MLflow Server..."
-sudo docker-compose up -d
+sudo /usr/local/bin/docker-compose up -d
 
 echo "MLflow Server is running at: http://$SERVER_IP:5000"
 
