@@ -1,12 +1,15 @@
 #!/bin/bash
 
 echo "Updating system..."
-sudo yum update && sudo yum upgrade -y
+sudo yum update -y
 
 echo "Installing Docker..."
-sudo yum install docker.io -y
+sudo amazon-linux-extras install docker -y
 sudo systemctl enable docker
 sudo systemctl start docker
+
+# (Optional) Add the ec2-user to the docker group to run docker commands without sudo.
+sudo usermod -a -G docker ec2-user
 
 echo "Installing AWS CLI..."
 sudo yum install awscli -y
