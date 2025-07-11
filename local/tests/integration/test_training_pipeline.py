@@ -18,10 +18,13 @@ import numpy as np
 from PIL import Image
 import mlflow
 
-# Add local directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add the project root to the Python path
+project_root = str(Path(__file__).parent.parent.parent)
+sys.path.append(project_root)
 
-import config_local
+# Import config from the correct location
+sys.path.append('/app/src')
+import config.config_local as config
 
 
 class TestTrainingPipeline:
@@ -77,36 +80,29 @@ class TestTrainingPipeline:
     
     def test_config_validation_with_test_data(self, test_data_dir):
         """Test configuration validation with test data."""
-        with patch.object(config_local, 'LOCAL_DATA_PATH', test_data_dir):
+        with patch.object(config, 'LOCAL_DATA_PATH', test_data_dir):
             # Should not raise an exception
-            config_local.validate_config()
+            config.validate_config()
     
     def test_model_architecture_creation(self):
-        """Test that model architecture can be created."""
-        # This tests the basic model creation logic
-        # We'll create a simple version of the model for testing
-        
-        class TestPavementNet(torch.nn.Module):
-            def __init__(self, num_classes=3):
-                super().__init__()
-                self.conv1 = torch.nn.Conv2d(3, 32, 3, padding=1)
-                self.pool = torch.nn.AdaptiveAvgPool2d((1, 1))
-                self.fc = torch.nn.Linear(32, num_classes)
-            
-            def forward(self, x):
-                x = torch.relu(self.conv1(x))
-                x = self.pool(x)
-                x = x.view(x.size(0), -1)
-                x = self.fc(x)
-                return x
-        
-        model = TestPavementNet()
-        
-        # Test forward pass
-        test_input = torch.randn(1, 3, 256, 256)
-        output = model(test_input)
-        
-        assert output.shape == (1, 3), f"Expected output shape (1, 3), got {output.shape}"
+        """Test that model architecture parameters are valid."""
+        assert config.INPUT_SIZE[0] > 0
+        assert config.INPUT_SIZE[1] > 0
+        assert isinstance(config.ARCHITECTURE_NAME, str)
+        assert len(config.ARCHITECTURE_NAME) > 0
+    
+    def test_training_parameters(self):
+        """Test that training parameters are valid."""
+        assert config.BATCH_SIZE > 0
+        assert config.NUM_EPOCHS > 0
+        assert config.LEARNING_RATE > 0
+        assert config.SEED >= 0
+    
+    def test_data_split_ratios(self):
+        """Test that data split ratios are valid."""
+        total = config.TRAIN_RATIO + config.VAL_RATIO + config.TEST_RATIO
+        assert abs(total - 1.0) < 1e-6
+        assert all(0 < ratio < 1 for ratio in [config.TRAIN_RATIO, config.VAL_RATIO, config.TEST_RATIO])
     
     def test_training_loop_basic_functionality(self, test_data_dir, mock_mlflow):
         """Test basic training loop functionality."""
