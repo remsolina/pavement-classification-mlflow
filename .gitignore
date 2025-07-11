@@ -1,46 +1,108 @@
-# MLflow artifacts and runs
+# ===================================================================
+# MLFLOW ARTIFACTS AND RUNS
+# ===================================================================
 mlflow-artifacts/
 mlruns/
 
-# Python
+# ===================================================================
+# PYTHON
+# ===================================================================
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-venv/
-env/
-ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
 
-# Logs and temporary files
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# ===================================================================
+# LOGS AND TEMPORARY FILES
+# ===================================================================
 *.log
 *.pid
 *.tmp
+*.bak
+*.swp
+*.swo
 
-# Model files
+# ===================================================================
+# MODEL FILES AND DATA
+# ===================================================================
 *.pth
 *.pkl
+*.h5
+*.onnx
+*.pb
 
-# Images and data
-*.jpg
-*.jpeg
-*.png
-*.bmp
-*.tiff
+# Training data (but allow sample data)
+data/
+local/data/
+!data/sample/
+!local/data/sample/
 
-# IDE
+# ===================================================================
+# IDE AND EDITORS
+# ===================================================================
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# ===================================================================
+# OPERATING SYSTEM
+# ===================================================================
 .DS_Store
 Thumbs.db
 
-# Environment files
-.env
+# ===================================================================
+# ENVIRONMENT FILES
+# ===================================================================
 *.env
+!local/config/docker-config.env
 
-# Docker
+# ===================================================================
+# DOCKER
+# ===================================================================
 .dockerignore
+.docker/
+docker-compose.override.yml
+
+# ===================================================================
+# TESTING AND COVERAGE
+# ===================================================================
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# ===================================================================
+# JUPYTER NOTEBOOKS
+# ===================================================================
+*.ipynb_checkpoints/
