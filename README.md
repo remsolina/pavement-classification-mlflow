@@ -35,7 +35,7 @@ local/
 
 ```bash
 git clone <repository-url>
-cd mlflow-server/local
+cd pavement-classification-mlflow/local
 ```
 
 ### 3.2. Configure your data path and training parameters
