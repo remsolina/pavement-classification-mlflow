@@ -1,0 +1,46 @@
+# MLflow artifacts and runs
+mlflow-artifacts/
+mlruns/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# Logs and temporary files
+*.log
+*.pid
+*.tmp
+
+# Model files
+*.pth
+*.pkl
+
+# Images and data
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.tiff
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+*.env
+
+# Docker
+.dockerignore

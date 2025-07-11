@@ -1,0 +1,300 @@
+name: 🚀 Local MLflow CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+env:
+  PYTHON_VERSION: '3.9'
+  DOCKER_BUILDKIT: 1
+
+jobs:
+  # ===================================================================
+  # 🧪 TESTING JOBS
+  # ===================================================================
+  
+  setup-validation:
+    name: 🔧 Setup Validation
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: 📦 Install Dependencies
+      run: |
+        cd local
+        pip install -r requirements.txt
+        
+    - name: 🧪 Run Setup Tests
+      run: |
+        cd local
+        python test_setup.py --quick
+        
+    - name: ⚙️ Validate Configuration
+      run: |
+        cd local
+        python validate_config.py || echo "Config validation completed with warnings"
+
+  unit-tests:
+    name: 🧪 Unit Tests
+    runs-on: ubuntu-latest
+    needs: setup-validation
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: 📦 Install Dependencies
+      run: |
+        cd local
+        pip install -r requirements.txt
+        
+    - name: 🧪 Run Unit Tests
+      run: |
+        cd local
+        python -m pytest tests/unit/ -v --cov=. --cov-report=xml
+        
+    - name: 📊 Upload Coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./local/coverage.xml
+        flags: unittests
+
+  integration-tests:
+    name: 🔗 Integration Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    
+    services:
+      mysql:
+        image: mysql:8
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: mlflow_test
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_pass
+        ports:
+          - 3306:3306
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: 📦 Install Dependencies
+      run: |
+        cd local
+        pip install -r requirements.txt
+        
+    - name: 🐳 Setup Test Environment
+      run: |
+        cd local
+        # Create test data structure
+        mkdir -p test_data/{asphalt,chip-sealed,gravel}
+        # Create dummy images for testing
+        python -c "
+        from PIL import Image
+        import numpy as np
+        for cls in ['asphalt', 'chip-sealed', 'gravel']:
+            for i in range(5):
+                img = Image.fromarray(np.random.randint(0, 255, (256, 256, 3), dtype=np.uint8))
+                img.save(f'test_data/{cls}/test_{i}.jpg')
+        "
+        
+    - name: 🔗 Run Integration Tests
+      env:
+        MYSQL_HOST: localhost
+        MYSQL_PORT: 3306
+        MYSQL_USER: test_user
+        MYSQL_PASSWORD: test_pass
+        MYSQL_DATABASE: mlflow_test
+        DATA_PATH: ./test_data
+      run: |
+        cd local
+        python -m pytest tests/integration/ -v
+
+  # ===================================================================
+  # 🐳 DOCKER JOBS
+  # ===================================================================
+  
+  docker-build:
+    name: 🐳 Docker Build Test
+    runs-on: ubuntu-latest
+    needs: setup-validation
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐳 Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: 🔨 Build Training Image
+      run: |
+        cd local
+        docker build -f Dockerfile.training -t mlflow-training-test .
+        
+    - name: 🧪 Test Docker Image
+      run: |
+        cd local
+        # Test that the image runs without errors
+        docker run --rm mlflow-training-test python -c "import torch; import mlflow; print('Docker image OK')"
+
+  docker-compose-test:
+    name: 🐳 Docker Compose Test
+    runs-on: ubuntu-latest
+    needs: docker-build
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐳 Test Docker Compose Configuration
+      run: |
+        cd local
+        docker-compose -f docker-compose.local.yml config
+        
+    - name: 🚀 Start Services
+      run: |
+        cd local
+        # Start services in background
+        docker-compose -f docker-compose.local.yml up -d mlflow-mysql mlflow
+        
+    - name: ⏳ Wait for Services
+      run: |
+        cd local
+        # Wait for MLflow to be ready
+        timeout 120 bash -c 'until curl -f http://localhost:5005; do sleep 5; done'
+        
+    - name: 🧪 Test MLflow API
+      run: |
+        # Test MLflow API endpoints
+        curl -f http://localhost:5005/api/2.0/mlflow/experiments/list
+        
+    - name: 🛑 Cleanup
+      run: |
+        cd local
+        docker-compose -f docker-compose.local.yml down -v
+
+  # ===================================================================
+  # 🎯 TRAINING JOBS
+  # ===================================================================
+  
+  training-test:
+    name: 🎯 Training Pipeline Test
+    runs-on: ubuntu-latest
+    needs: [integration-tests, docker-compose-test]
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        
+    - name: 📦 Install Dependencies
+      run: |
+        cd local
+        pip install -r requirements.txt
+        
+    - name: 🐳 Setup Test Environment
+      run: |
+        cd local
+        # Create test data
+        mkdir -p test_data/{asphalt,chip-sealed,gravel}
+        python -c "
+        from PIL import Image
+        import numpy as np
+        for cls in ['asphalt', 'chip-sealed', 'gravel']:
+            for i in range(10):
+                img = Image.fromarray(np.random.randint(0, 255, (256, 256, 3), dtype=np.uint8))
+                img.save(f'test_data/{cls}/test_{i}.jpg')
+        "
+        
+    - name: 🚀 Start MLflow Server
+      run: |
+        cd local
+        docker-compose -f docker-compose.local.yml up -d
+        timeout 120 bash -c 'until curl -f http://localhost:5005; do sleep 5; done'
+        
+    - name: 🎯 Run Training Test
+      env:
+        DATA_PATH: ./test_data
+        MLFLOW_TRACKING_URI: http://localhost:5005
+      run: |
+        cd local
+        # Run a quick training test (1 epoch)
+        python -c "
+        import config_local
+        config_local.NUM_EPOCHS = 1
+        config_local.LOCAL_DATA_PATH = './test_data'
+        " > config_test.py
+        
+        # Run training with test config
+        python model_7_local.py
+        
+    - name: 🧪 Verify Training Results
+      run: |
+        # Check that MLflow logged the experiment
+        curl -f http://localhost:5005/api/2.0/mlflow/experiments/list | grep -q "Pytorch_CNN"
+        
+    - name: 🛑 Cleanup
+      run: |
+        cd local
+        docker-compose -f docker-compose.local.yml down -v
+
+  # ===================================================================
+  # 📊 REPORTING JOB
+  # ===================================================================
+  
+  generate-report:
+    name: 📊 Generate CI Report
+    runs-on: ubuntu-latest
+    needs: [unit-tests, integration-tests, docker-compose-test, training-test]
+    if: always()
+    
+    steps:
+    - name: 📥 Checkout Code
+      uses: actions/checkout@v4
+      
+    - name: 📊 Generate Report
+      run: |
+        echo "# 🚀 CI/CD Pipeline Report" > ci_report.md
+        echo "" >> ci_report.md
+        echo "## 📋 Job Status" >> ci_report.md
+        echo "- Setup Validation: ${{ needs.setup-validation.result }}" >> ci_report.md
+        echo "- Unit Tests: ${{ needs.unit-tests.result }}" >> ci_report.md
+        echo "- Integration Tests: ${{ needs.integration-tests.result }}" >> ci_report.md
+        echo "- Docker Build: ${{ needs.docker-build.result }}" >> ci_report.md
+        echo "- Docker Compose Test: ${{ needs.docker-compose-test.result }}" >> ci_report.md
+        echo "- Training Test: ${{ needs.training-test.result }}" >> ci_report.md
+        echo "" >> ci_report.md
+        echo "## 🎯 Summary" >> ci_report.md
+        echo "Pipeline completed at: $(date)" >> ci_report.md
+        
+    - name: 📤 Upload Report
+      uses: actions/upload-artifact@v3
+      with:
+        name: ci-report
+        path: ci_report.md

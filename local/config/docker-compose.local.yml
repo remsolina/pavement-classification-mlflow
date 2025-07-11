@@ -1,0 +1,142 @@
+# ===================================================================
+# 🐳 CONTAINERIZED MLFLOW SETUP WITH MYSQL BACKEND
+# ===================================================================
+# This docker-compose file sets up a complete MLflow environment with:
+# - MySQL database for experiment tracking
+# - MLflow server with UI and API
+# - Training container for running ML experiments
+#
+# Configuration: All parameters are defined in docker-config.env
+# Usage: docker-compose -f docker-compose.local.yml up -d
+# ===================================================================
+
+services:
+  # ===================================================================
+  # 📊 MYSQL DATABASE SERVICE
+  # ===================================================================
+  # Stores MLflow experiment metadata, runs, parameters, and metrics
+  # Provides persistent storage for all experiment tracking data
+  
+  mlflow-mysql:
+    image: mysql:8
+    env_file:
+      - ./docker-config.env
+    container_name: mlflow-mysql-local
+    restart: unless-stopped
+
+    # Database configuration
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+      MYSQL_DATABASE:      "${MYSQL_DATABASE}"
+      MYSQL_USER:          "${MYSQL_USER}"
+      MYSQL_PASSWORD:      "${MYSQL_PASSWORD}"
+
+    # Port mapping: host:container
+    ports:
+      - "3308:3306"
+
+    # Persistent storage for database data
+    volumes:
+      - mysql_data_local:/var/lib/mysql
+
+    # Health check to ensure database is ready before starting MLflow
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+    # Connect to custom network for inter-service communication
+    networks:
+      - mlflow-local-network
+
+  # ===================================================================
+  # 🔗 MLFLOW SERVER SERVICE
+  # ===================================================================
+  # Provides MLflow UI and API for experiment tracking
+  # Connects to MySQL for metadata and serves artifacts
+
+  mlflow:
+    build:
+      context: ../../
+      dockerfile: local/config/Dockerfile.mlflow
+    # Custom MLflow image with MySQL support
+    image: mlflow-custom:2.20.3
+    env_file:
+      - ./docker-config.env
+    container_name: mlflow-server-local
+    restart: unless-stopped
+
+    depends_on:
+      mlflow-mysql:
+        condition: service_healthy
+
+    ports:
+      - "5005:5000"
+
+    # Mount volumes into fixed container paths
+    volumes:
+      - mlflow-artifacts:/app/mlflow-artifacts:rw
+      - mlruns:/app/mlruns
+
+
+    # Configure MLflow server to connect to MySQL and write artifacts
+    environment:
+      MLFLOW_BACKEND_STORE_URI: >
+        mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@${MYSQL_CONTAINER_NAME}:3306/${MYSQL_DATABASE}
+      # MLFLOW_BACKEND_STORE_URI: mysql+pymysql://mlflow_user:mlflow_secure_pass_2024@mlflow-mysql-local:3306/mlflow
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: ${MLFLOW_DEFAULT_ARTIFACT_ROOT}
+      MLFLOW_REGISTRY_STORE_URI: ${MLFLOW_BACKEND_STORE_URI}
+      # MLFLOW_REGISTRY_STORE_URI: mysql+pymysql://mlflow_user:mlflow_secure_pass_2024@mlflow-mysql-local:3306/mlflow
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI_INTERNAL}
+    command: >
+      mlflow server --backend-store-uri=${MLFLOW_BACKEND_STORE_URI} --default-artifact-root=${MLFLOW_DEFAULT_ARTIFACT_ROOT} --registry-store-uri="${MLFLOW_REGISTRY_STORE_URI}" --serve-artifacts --host 0.0.0.0 --port 5000
+    networks:
+      - mlflow-local-network
+
+
+  # ===================================================================
+  # 🧠 TRAINING SERVICE
+  # ===================================================================
+  # Runs containerized ML training scripts with access to MLflow
+  # This service is used by Prefect flow for training execution
+  training:
+    profiles: ["manual"]
+    container_name: ${TRAINING_CONTAINER_NAME:-mlflow-training-local}
+    build:
+      context: ${WORKSPACE_PATH:-../../}
+      dockerfile: local/config/Dockerfile.training
+    image: config-training:latest
+    env_file:
+      - ./docker-config.env
+    working_dir: /app
+    volumes:
+      - ${TRAINING_DATA_PATH:-/Users/remioyediji/CapstoneProject/finaldata}:/app/data:ro
+      - mlflow-artifacts:/app/mlflow-artifacts
+    depends_on:
+      - mlflow
+    environment:
+      - MLFLOW_TRACKING_URI=${MLFLOW_TRACKING_URI_INTERNAL:-http://mlflow-server-local:5000}
+      - DATA_PATH=/app/data
+      - PYTHONPATH=/app/src
+    networks:
+      - mlflow-local-network
+      
+# ===================================================================
+# 📦 VOLUMES
+# ===================================================================
+# Persistent storage for database data
+volumes:
+  # MySQL data volume - stores all database data persistently
+  # Volume name is configurable in docker-config.env
+  mysql_data_local:
+  mlflow-artifacts:
+  mlruns:
+
+# ===================================================================
+# 🌐 NETWORKS
+# ===================================================================
+# Custom network for inter-service communication
+# Allows containers to communicate using service names
+networks:
+  mlflow-local-network:
+    driver: bridge
