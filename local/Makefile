@@ -1,15 +1,15 @@
-# 🚀 MLflow Local CI/CD Makefile
+# 🚀 MLflow Local Pipeline Makefile
 # 
-# This Makefile provides convenient commands for running tests,
-# CI/CD pipeline, and development tasks locally.
+# This Makefile provides convenient commands for running the Prefect-driven
+# MLflow pipeline, testing, and development tasks locally.
 #
 # Usage:
 #   make help          # Show this help
 #   make test          # Run all tests
-#   make train         # Run training
+#   make train         # Run complete Prefect pipeline
 #   make setup         # Setup development environment
 
-.PHONY: help test unit-test integration-test train setup clean lint format docker-test build-training build-training-in-prefect retag-training-image
+.PHONY: help test unit-test integration-test train setup clean lint format docker-test build-training docker-up docker-down docker-logs clean-docker status
 
 # Default target
 .DEFAULT_GOAL := help
@@ -23,8 +23,8 @@ BOLD := \033[1m
 NC := \033[0m # No Color
 
 help: ## 📋 Show this help message
-	@echo "$(BOLD)🚀 MLflow Local CI/CD Commands$(NC)"
-	@echo "=================================="
+	@echo "$(BOLD)🚀 MLflow Local Pipeline Commands$(NC)"
+	@echo "====================================="
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "$(BLUE)%-20s$(NC) %s\n", $$1, $$2}'
 
 # ===================================================================
@@ -48,20 +48,16 @@ test-coverage: ## 📊 Run tests with coverage report
 	python -m pytest tests/ -v --cov=. --cov-report=html --cov-report=term
 
 # ===================================================================
-# 🎯 TRAINING COMMANDS
+# 🎯 TRAINING COMMANDS (PREFECT)
 # ===================================================================
 
-train: ## 🎯 Run training pipeline
-	@echo "$(BOLD)🎯 Running training pipeline...$(NC)"
-	python scripts/run_training.py train
+train: ## 🎯 Run complete Prefect pipeline (build, test, train)
+	@echo "$(BOLD)🎯 Running complete Prefect pipeline...$(NC)"
+	cd .. && python local/scripts/prefect_flow.py
 
-train-build: ## 🔨 Build training container
-	@echo "$(BOLD)🔨 Building training container...$(NC)"
-	python scripts/run_training.py build
-
-train-cleanup: ## 🧹 Clean up training containers
-	@echo "$(BOLD)🧹 Cleaning up training containers...$(NC)"
-	python scripts/run_training.py cleanup
+train-with-cleanup: ## 🎯 Run Prefect pipeline with cleanup
+	@echo "$(BOLD)🎯 Running Prefect pipeline with cleanup...$(NC)"
+	cd .. && python local/scripts/prefect_flow.py --do-cleanup
 
 # ===================================================================
 # 🐳 DOCKER COMMANDS
@@ -69,24 +65,24 @@ train-cleanup: ## 🧹 Clean up training containers
 
 docker-build: ## 🐳 Build Docker training image
 	@echo "$(BOLD)🐳 Building Docker training image...$(NC)"
-	docker-compose -f config/docker-compose.local.yml build training
+	docker compose --env-file config/docker-config.env -f config/docker-compose.local.yml build training
 
 docker-test: ## 🧪 Test Docker setup
 	@echo "$(BOLD)🧪 Testing Docker setup...$(NC)"
-	docker-compose -f config/docker-compose.local.yml config
+	docker compose --env-file config/docker-config.env -f config/docker-compose.local.yml config
 	@echo "$(GREEN)✅ Docker configuration valid$(NC)"
 
 docker-up: ## 🚀 Start MLflow services
 	@echo "$(BOLD)🚀 Starting MLflow services...$(NC)"
-	docker-compose -f config/docker-compose.local.yml up -d mlflow-mysql mlflow
+	docker compose --env-file config/docker-config.env -f config/docker-compose.local.yml up -d mlflow-mysql mlflow
 
 docker-down: ## 🛑 Stop MLflow services
 	@echo "$(BOLD)🛑 Stopping MLflow services...$(NC)"
-	docker-compose -f config/docker-compose.local.yml down
+	docker compose --env-file config/docker-config.env -f config/docker-compose.local.yml down
 
 docker-logs: ## 📋 Show Docker logs
 	@echo "$(BOLD)📋 Docker logs:$(NC)"
-	docker-compose -f config/docker-compose.local.yml logs
+	docker compose --env-file config/docker-config.env -f config/docker-compose.local.yml logs
 
 # ===================================================================
 # 🧹 CLEANUP COMMANDS
@@ -103,9 +99,15 @@ clean: ## 🧹 Clean up temporary files and artifacts
 
 clean-docker: ## 🐳 Clean up Docker containers and images
 	@echo "$(BOLD)🧹 Cleaning up Docker...$(NC)"
-	docker-compose -f config/docker-compose.local.yml down -v
+	docker compose --env-file config/docker-config.env -f config/docker-compose.local.yml down -v
 	docker system prune -f
 	@echo "$(GREEN)✅ Docker cleanup complete!$(NC)"
+
+clean-all: ## 🧹 Clean everything (Docker + local)
+	@echo "$(BOLD)🧹 Cleaning everything...$(NC)"
+	$(MAKE) clean
+	$(MAKE) clean-docker
+	@echo "$(GREEN)✅ Complete cleanup finished!$(NC)"
 
 # ===================================================================
 # 📊 REPORTING COMMANDS
@@ -128,7 +130,10 @@ quick-test: ## ⚡ Quick test (unit tests only, no coverage)
 
 health-check: ## 🔍 Run health checks
 	@echo "$(BOLD)🔍 Running health checks...$(NC)"
-	python scripts/check_health.py
+	@echo "$(BLUE)Checking MLflow server...$(NC)"
+	@curl -s http://localhost:5005 >/dev/null && echo "$(GREEN)✅ MLflow server running$(NC)" || echo "$(RED)❌ MLflow server not running$(NC)"
+	@echo "$(BLUE)Checking MySQL...$(NC)"
+	@docker compose --env-file config/docker-config.env -f config/docker-compose.local.yml ps | grep -q "Up" && echo "$(GREEN)✅ MySQL running$(NC)" || echo "$(RED)❌ MySQL not running$(NC)"
 
 all: clean test train ## 🎯 Run complete workflow (clean, test, train)
 	@echo "$(BOLD)$(GREEN)🎉 Complete workflow finished!$(NC)"
@@ -142,18 +147,31 @@ status: ## 📊 Show project status
 	@echo "=================="
 	@echo "$(BLUE)Python Version:$(NC) $$(python --version)"
 	@echo "$(BLUE)Docker Status:$(NC) $$(docker --version 2>/dev/null || echo 'Not installed')"
+	@echo "$(BLUE)Prefect Status:$(NC) $$(prefect version 2>/dev/null || echo 'Not installed')"
 	@echo "$(BLUE)MLflow Status:$(NC) $$(curl -s http://localhost:5005 >/dev/null && echo 'Running' || echo 'Not running')"
 	@echo "$(BLUE)Test Files:$(NC) $$(find tests/ -name '*.py' | wc -l) files"
 	@echo "$(BLUE)Training Script:$(NC) src/model_7_local.py"
+	@echo "$(BLUE)Prefect Flow:$(NC) scripts/prefect_flow.py"
 
-# Build the training image from the host (recommended for Prefect)
-build-training:
-	docker compose -f local/config/docker-compose.local.yml build training
+# ===================================================================
+# 🔧 SETUP COMMANDS
+# ===================================================================
 
-# Build the training image inside the Prefect container (advanced/debug)
-build-training-in-prefect:
-	docker exec -it prefect bash -c 'cd /workspace && docker build -f local/config/Dockerfile.training -t config-training:latest .'
+setup: ## 🔧 Setup development environment
+	@echo "$(BOLD)🔧 Setting up development environment...$(NC)"
+	@echo "$(BLUE)Installing Python dependencies...$(NC)"
+	pip install -r src/requirements.txt
+	@echo "$(BLUE)Installing Prefect...$(NC)"
+	pip install prefect
+	@echo "$(GREEN)✅ Setup complete!$(NC)"
+	@echo "$(YELLOW)Next steps:$(NC)"
+	@echo "  1. Start Prefect server: prefect server start"
+	@echo "  2. Run the pipeline: make train"
 
-# Retag a custom image as config-training:latest
-retag-training-image:
-	docker tag test-training config-training:latest
+# ===================================================================
+# 🐳 TRAINING IMAGE COMMANDS
+# ===================================================================
+
+build-training: ## 🐳 Build training image (alias for docker-build)
+	@echo "$(BOLD)🐳 Building training image...$(NC)"
+	$(MAKE) docker-build

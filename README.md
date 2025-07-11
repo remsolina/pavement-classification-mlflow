@@ -102,6 +102,44 @@ prefect run -p local/scripts/prefect_flow.py
 
 ---
 
+### 3.5. Alternative: Using Makefile Commands
+
+If you prefer simpler commands, you can use the provided Makefile:
+
+```bash
+# Navigate to the local directory
+cd local
+
+# See all available commands
+make help
+
+# Run the complete pipeline
+make train
+
+# Check system status
+make status
+
+# Run health checks
+make health-check
+
+# Build training image only
+make docker-build
+
+# Start MLflow services only
+make docker-up
+
+# Clean everything
+make clean-all
+```
+
+**Makefile Benefits:**
+- **Simpler commands** - No need to remember long Docker/Prefect commands
+- **Consistent workflow** - Same commands for everyone on the team
+- **Built-in help** - Run `make help` to see all options
+- **Health checks** - Easy system status verification
+
+---
+
 ## 4. What the Prefect Flow Does
 
 The `ml_pipeline` flow performs these tasks automatically:
