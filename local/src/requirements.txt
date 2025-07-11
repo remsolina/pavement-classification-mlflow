@@ -1,0 +1,28 @@
+# Core dependencies (used by model_7_local.py)
+numpy==2.0.2
+pandas==2.3.1
+scikit-learn==1.6.1
+matplotlib==3.9.4
+seaborn==0.13.2
+
+# MLflow (used by model_7_local.py and Prefect flow)
+mlflow==2.20.3
+
+# Testing (used by pytest in Prefect flow)
+pytest==8.4.1
+pytest-cov==6.2.1
+
+# Image processing (used by model_7_local.py)
+Pillow==11.3.0
+
+# Deep learning (used by model_7_local.py)
+torch==2.7.1
+torchvision==0.22.1
+
+# Utilities (useful for ML workflows)
+tqdm==4.67.1
+
+# Database dependencies (used by MLflow with MySQL)
+SQLAlchemy==2.0.41
+
+
