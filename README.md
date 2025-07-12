@@ -58,7 +58,7 @@ TRAINING_DATA_PATH/
 ```
 
 **Training Parameters**: You can modify training hyperparameters in `config/config_local.py`:
-- `NUM_EPOCHS = 2` (currently set to 2 for quick testing on CPU)
+- `NUM_EPOCHS = 2` (Should be 30, currently set to 2 for quick testing on CPU)
 - `LEARNING_RATE = 0.001`
 - `BATCH_SIZE = 32`
 - `TRAIN_RATIO = 0.70`, `VAL_RATIO = 0.15`, `TEST_RATIO = 0.15`
