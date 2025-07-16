@@ -40,8 +40,39 @@ cd pavement-classification-mlflow/local
 
 ### 3.2. Configure your data path and training parameters
 
-- Edit `config/config_local.py` and set `LOCAL_DATA_PATH` to your dataset location.
-- Or update `TRAINING_DATA_PATH` in `config/docker-config.env` to point to your data.
+**⚠️ IMPORTANT: You MUST update the workspace paths before running the pipeline!**
+
+The configuration files contain hardcoded paths that need to be updated for your system:
+
+1. **Edit `local/config/config_local.py`** and update the `LOCAL_DATA_PATH`:
+   ```python
+   # Change this line (around line 18):
+   LOCAL_DATA_PATH = os.getenv("DATA_PATH", "/Users/remioyediji/CapstoneProject/finaldata")
+   
+   # To your actual data path, for example:
+   LOCAL_DATA_PATH = os.getenv("DATA_PATH", "/path/to/your/dataset")
+   ```
+
+2. **Edit `local/config/docker-config.env`** and update **both** paths:
+   ```bash
+   # Change this line (around line 47):
+   TRAINING_DATA_PATH=/Users/remioyediji/CapstoneProject/finaldata
+   
+   # To your actual data path:
+   TRAINING_DATA_PATH=/path/to/your/dataset
+   
+   # AND change this line (around line 75):
+   WORKSPACE_PATH=/Users/remioyediji/CapstoneProject/pavement-classification-mlflow
+   
+   # To your actual project root path:
+   WORKSPACE_PATH=/path/to/your/pavement-classification-mlflow
+   ```
+
+3. **Alternative**: Set environment variables:
+   ```bash
+   export DATA_PATH="/path/to/your/dataset"
+   export WORKSPACE_PATH="/path/to/your/pavement-classification-mlflow"
+   ```
 
 **Training Data Structure**: Your dataset must follow this directory structure:
 ```
@@ -187,6 +218,21 @@ python local/scripts/prefect_flow.py --do-cleanup
 
 ## 7. Troubleshooting
 
+- **Data path not found**: 
+  ```bash
+  # Error: "Data path does not exist: /Users/remioyediji/CapstoneProject/finaldata"
+  # Solution: Update LOCAL_DATA_PATH in local/config/config_local.py to your actual data path
+  ```
+- **Docker build context errors**: 
+  ```bash
+  # Error: "failed to compute cache key: failed to calculate checksum"
+  # Solution: Update WORKSPACE_PATH in local/config/docker-config.env to your actual project root
+  ```
+- **Training data not found in container**: 
+  ```bash
+  # Error: "No such file or directory" when accessing training data
+  # Solution: Update TRAINING_DATA_PATH in local/config/docker-config.env to your actual data path
+  ```
 - **Prefect server not running**: Make sure to start `prefect server start` before running flows
 - **Port conflicts**: If ports 5005 (MLflow), 3308 (MySQL), or 4200 (Prefect) are in use, stop other services or change ports
 - **Database connection**: Ensure MySQL is running and credentials are correct
